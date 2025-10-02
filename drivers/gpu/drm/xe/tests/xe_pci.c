@@ -75,9 +75,9 @@ KUNIT_ARRAY_PARAM(platform, cases, xe_pci_fake_data_desc);
  *
  * Return: pointer to the next parameter or NULL if no more parameters
  */
-const void *xe_pci_fake_data_gen_params(const void *prev, char *desc)
+const void *xe_pci_fake_data_gen_params(struct kunit *test, const void *prev, char *desc)
 {
-	return platform_gen_params(prev, desc);
+	return platform_gen_params(test, prev, desc);
 }
 EXPORT_SYMBOL_IF_KUNIT(xe_pci_fake_data_gen_params);
 
@@ -211,15 +211,15 @@ static void xe_ip_kunit_desc(const struct xe_ip *param, char *desc)
  * param generator can be used for both
  */
 static const struct xe_ip pre_gmdid_graphics_ips[] = {
-	graphics_ip_xelp,
-	graphics_ip_xelpp,
-	graphics_ip_xehpg,
-	graphics_ip_xehpc,
+	{ 1200, "Xe_LP", &graphics_xelp },
+	{ 1210, "Xe_LP+", &graphics_xelp },
+	{ 1255, "Xe_HPG", &graphics_xehpg },
+	{ 1260, "Xe_HPC", &graphics_xehpc },
 };
 
 static const struct xe_ip pre_gmdid_media_ips[] = {
-	media_ip_xem,
-	media_ip_xehpm,
+	{ 1200, "Xe_M", &media_xem },
+	{ 1255, "Xe_HPM", &media_xem },
 };
 
 KUNIT_ARRAY_PARAM(pre_gmdid_graphics_ip, pre_gmdid_graphics_ips, xe_ip_kunit_desc);
