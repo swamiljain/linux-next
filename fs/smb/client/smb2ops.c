@@ -3125,9 +3125,8 @@ get_smb2_acl_by_path(struct cifs_sb_info *cifs_sb,
 
 	utf16_path = cifs_convert_path_to_utf16(path, cifs_sb);
 	if (!utf16_path) {
-		rc = -ENOMEM;
 		free_xid(xid);
-		return ERR_PTR(rc);
+		return ERR_PTR(-ENOMEM);
 	}
 
 	oparms = (struct cifs_open_parms) {
