@@ -23,6 +23,7 @@
 
 #include <pthread.h>
 
+#include "kvm_syscalls.h"
 #include "kvm_util_arch.h"
 #include "kvm_util_types.h"
 #include "sparsebit.h"
@@ -282,9 +283,6 @@ static inline bool kvm_has_cap(long cap)
 {
 	return kvm_check_cap(cap);
 }
-
-#define __KVM_SYSCALL_ERROR(_name, _ret) \
-	"%s failed, rc: %i errno: %i (%s)", (_name), (_ret), errno, strerror(errno)
 
 /*
  * Use the "inner", double-underscore macro when reporting errors from within
