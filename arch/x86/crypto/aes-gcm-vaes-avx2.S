@@ -578,7 +578,6 @@ SYM_FUNC_START(aes_gcm_aad_update_vaes_avx2)
 	cmp		$16, AADLEN
 	jle		.Laad_lastblock
 
-.Laad_last2blocks:
 	// Update GHASH with the remaining 17 <= AADLEN <= 31 bytes of AAD.
 	mov		AADLEN, AADLEN	// Zero-extend AADLEN to AADLEN64.
 	vmovdqu		(AAD), TMP0_XMM
@@ -634,7 +633,7 @@ SYM_FUNC_END(aes_gcm_aad_update_vaes_avx2)
 .endm
 
 // Generate and encrypt counter blocks in the given AESDATA vectors, excluding
-// the last AES round.  Clobbers TMP0.
+// the last AES round.  Clobbers %rax and TMP0.
 .macro	_aesenc_loop	vecs:vararg
 	_ctr_begin	\vecs
 	lea		16(KEY), %rax
@@ -690,6 +689,7 @@ SYM_FUNC_END(aes_gcm_aad_update_vaes_avx2)
 	.set	GHASH_ACC_PTR,	%rdx
 	.set	SRC,		%rcx	// Assumed to be %rcx.
 					// See .Ltail_xor_and_ghash_partial_vec
+					// See .Ltail_xor_and_ghash_1to16bytes
 	.set	DST,		%r8
 	.set	DATALEN,	%r9d
 	.set	DATALEN64,	%r9	// Zero-extend DATALEN before using!
