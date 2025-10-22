@@ -2054,7 +2054,7 @@ static inline void mark_objexts_empty(struct slabobj_ext *obj_exts)
 
 static inline void mark_failed_objexts_alloc(struct slab *slab)
 {
-	slab->obj_exts = OBJEXTS_ALLOC_FAIL;
+	cmpxchg(&slab->obj_exts, 0, OBJEXTS_ALLOC_FAIL);
 }
 
 static inline void handle_failed_objexts_alloc(unsigned long obj_exts,
@@ -2136,6 +2136,7 @@ int alloc_slab_obj_exts(struct slab *slab, struct kmem_cache *s,
 #ifdef CONFIG_MEMCG
 	new_exts |= MEMCG_DATA_OBJEXTS;
 #endif
+retry:
 	old_exts = READ_ONCE(slab->obj_exts);
 	handle_failed_objexts_alloc(old_exts, vec, objects);
 	if (new_slab) {
@@ -2145,8 +2146,7 @@ int alloc_slab_obj_exts(struct slab *slab, struct kmem_cache *s,
 		 * be simply assigned.
 		 */
 		slab->obj_exts = new_exts;
-	} else if ((old_exts & ~OBJEXTS_FLAGS_MASK) ||
-		   cmpxchg(&slab->obj_exts, old_exts, new_exts) != old_exts) {
+	} else if (old_exts & ~OBJEXTS_FLAGS_MASK) {
 		/*
 		 * If the slab is already in use, somebody can allocate and
 		 * assign slabobj_exts in parallel. In this case the existing
@@ -2158,6 +2158,9 @@ int alloc_slab_obj_exts(struct slab *slab, struct kmem_cache *s,
 		else
 			kfree(vec);
 		return 0;
+	} else if (cmpxchg(&slab->obj_exts, old_exts, new_exts) != old_exts) {
+		/* Retry if a racing thread changed slab->obj_exts from under us. */
+		goto retry;
 	}
 
 	if (allow_spin)
@@ -3265,13 +3268,21 @@ static struct slab *allocate_slab(struct kmem_cache *s, gfp_t flags, int node)
 
 static struct slab *new_slab(struct kmem_cache *s, gfp_t flags, int node)
 {
+	struct slab *slab;
+
 	if (unlikely(flags & GFP_SLAB_BUG_MASK))
 		flags = kmalloc_fix_flags(flags);
 
 	WARN_ON_ONCE(s->ctor && (flags & __GFP_ZERO));
 
-	return allocate_slab(s,
-		flags & (GFP_RECLAIM_MASK | GFP_CONSTRAINT_MASK), node);
+	flags &= GFP_RECLAIM_MASK | GFP_CONSTRAINT_MASK;
+
+	slab = allocate_slab(s, flags, node);
+
+	if (likely(slab))
+		inc_slabs_node(s, slab_nid(slab), slab->objects);
+
+	return slab;
 }
 
 static void __free_slab(struct kmem_cache *s, struct slab *slab)
@@ -3412,8 +3423,7 @@ static void *alloc_single_from_new_slab(struct kmem_cache *s, struct slab *slab,
 					int orig_size, gfp_t gfpflags)
 {
 	bool allow_spin = gfpflags_allow_spinning(gfpflags);
-	int nid = slab_nid(slab);
-	struct kmem_cache_node *n = get_node(s, nid);
+	struct kmem_cache_node *n = get_node(s, slab_nid(slab));
 	unsigned long flags;
 	void *object;
 
@@ -3448,7 +3458,6 @@ static void *alloc_single_from_new_slab(struct kmem_cache *s, struct slab *slab,
 	else
 		add_partial(n, slab, DEACTIVATE_TO_HEAD);
 
-	inc_slabs_node(s, nid, slab->objects);
 	spin_unlock_irqrestore(&n->list_lock, flags);
 
 	return object;
@@ -4676,8 +4685,6 @@ new_objects:
 	slab->freelist = NULL;
 	slab->inuse = slab->objects;
 	slab->frozen = 1;
-
-	inc_slabs_node(s, slab_nid(slab), slab->objects);
 
 	if (unlikely(!pfmemalloc_match(slab, gfpflags) && allow_spin)) {
 		/*
@@ -7694,7 +7701,7 @@ static void early_kmem_cache_node_alloc(int node)
 
 	BUG_ON(kmem_cache_node->size < sizeof(struct kmem_cache_node));
 
-	slab = new_slab(kmem_cache_node, GFP_NOWAIT, node);
+	slab = allocate_slab(kmem_cache_node, GFP_NOWAIT, node);
 
 	BUG_ON(!slab);
 	if (slab_nid(slab) != node) {
