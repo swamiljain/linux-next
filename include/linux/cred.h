@@ -187,6 +187,28 @@ static inline const struct cred *revert_creds(const struct cred *revert_cred)
 	return rcu_replace_pointer(current->cred, revert_cred, 1);
 }
 
+static inline const struct cred *__assume_kernel_creds(void)
+{
+	return override_creds(kernel_cred());
+}
+
+static inline void __yield_kernel_creds(const struct cred *revert_cred)
+{
+	WARN_ON_ONCE(revert_creds(revert_cred) != kernel_cred());
+}
+
+DEFINE_CLASS(with_kernel_creds,
+	     const struct cred *,
+	     __yield_kernel_creds(_T),
+	     __assume_kernel_creds(), void)
+
+#define with_kernel_creds() \
+	CLASS(with_kernel_creds, __UNIQUE_ID(cred))()
+
+#define scoped_with_kernel_creds() \
+	for (CLASS(with_kernel_creds, __UNIQUE_ID(cred))(), \
+	     *__p = (void *)1; __p; __p = NULL)
+
 /**
  * get_cred_many - Get references on a set of credentials
  * @cred: The credentials to reference
