@@ -207,44 +207,6 @@ static inline unsigned int __io_cqring_events_user(struct io_ring_ctx *ctx)
 	return READ_ONCE(ctx->rings->cq.tail) - READ_ONCE(ctx->rings->cq.head);
 }
 
-static bool io_match_linked(struct io_kiocb *head)
-{
-	struct io_kiocb *req;
-
-	io_for_each_link(req, head) {
-		if (req->flags & REQ_F_INFLIGHT)
-			return true;
-	}
-	return false;
-}
-
-/*
- * As io_match_task() but protected against racing with linked timeouts.
- * User must not hold timeout_lock.
- */
-bool io_match_task_safe(struct io_kiocb *head, struct io_uring_task *tctx,
-			bool cancel_all)
-{
-	bool matched;
-
-	if (tctx && head->tctx != tctx)
-		return false;
-	if (cancel_all)
-		return true;
-
-	if (head->flags & REQ_F_LINK_TIMEOUT) {
-		struct io_ring_ctx *ctx = head->ctx;
-
-		/* protect against races with linked timeouts */
-		raw_spin_lock_irq(&ctx->timeout_lock);
-		matched = io_match_linked(head);
-		raw_spin_unlock_irq(&ctx->timeout_lock);
-	} else {
-		matched = io_match_linked(head);
-	}
-	return matched;
-}
-
 static inline void req_fail_link_node(struct io_kiocb *req, int res)
 {
 	req_set_fail(req);
@@ -3372,12 +3334,6 @@ end_wait:
 		/* for exec all current's requests should be gone, kill tctx */
 		__io_uring_free(current);
 	}
-}
-
-void __io_uring_cancel(bool cancel_all)
-{
-	io_uring_unreg_ringfd();
-	io_uring_cancel_generic(cancel_all, NULL);
 }
 
 static struct io_uring_reg_wait *io_get_ext_arg_reg(struct io_ring_ctx *ctx,
