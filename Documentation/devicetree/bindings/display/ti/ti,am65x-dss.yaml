@@ -24,19 +24,6 @@ description: |
   DPI signals are also routed internally to DSI Tx controller present within the
   SoC. Due to clocking limitations only one of the interface i.e. either DSI or
   DPI can be used at once.
-  The AM62P has two instances of TI Keystone Display SubSystem, each with two
-  video ports and two video planes. These instances can support up to 3
-  independent video streams through OLDI, DPI, and DSI interfaces.
-  DSS0 (first instance) supports:
-    - Two OLDI TXes on video port 1, configurable in dual-link or
-      single link clone mode
-    - DPI output on video port 2
-  DSS1 (second instance) supports:
-    - One OLDI TX on video port 1 (single-link mode only)
-    - DSI controller output on video port 2
-  The two OLDI TXes can be configured in clone mode to drive a pair of
-  identical OLDI single-link displays. DPI outputs from DSS0 VP2, DSS1 VP1,
-  and DSS1 VP2 are muxed, allowing only one DPI output at a time.
 
 properties:
   compatible:
@@ -44,7 +31,6 @@ properties:
       - ti,am625-dss
       - ti,am62a7-dss
       - ti,am62l-dss
-      - ti,am62p-dss
       - ti,am65x-dss
 
   reg:
@@ -95,8 +81,7 @@ properties:
     maxItems: 1
 
   power-domains:
-    minItems: 1
-    maxItems: 3
+    maxItems: 1
     description: phandle to the associated power domain
 
   dma-coherent:
@@ -358,116 +343,6 @@ examples:
                     dpi1_out: endpoint {
                         remote-endpoint = <&hdmi_bridge>;
                     };
-                };
-            };
-        };
-    };
-
-  - |
-    #include <dt-bindings/interrupt-controller/arm-gic.h>
-    #include <dt-bindings/interrupt-controller/irq.h>
-    #include <dt-bindings/soc/ti,sci_pm_domain.h>
-
-    dss0: dss@30200000 {
-        compatible = "ti,am62p-dss";
-        reg = <0x30200000 0x1000>, /* common */
-              <0x30202000 0x1000>, /* vidl1 */
-              <0x30206000 0x1000>, /* vid */
-              <0x30207000 0x1000>, /* ovr1 */
-              <0x30208000 0x1000>, /* ovr2 */
-              <0x3020a000 0x1000>, /* vp1: Used for OLDI */
-              <0x3020b000 0x1000>, /* vp2: Used as DPI Out */
-              <0x30201000 0x1000>; /* common1 */
-        reg-names = "common", "vidl1", "vid",
-                    "ovr1", "ovr2", "vp1", "vp2", "common1";
-        power-domains = <&k3_pds 186 TI_SCI_PD_EXCLUSIVE>,
-                        <&k3_pds 243 TI_SCI_PD_EXCLUSIVE>,
-                        <&k3_pds 244 TI_SCI_PD_EXCLUSIVE>;
-        clocks = <&k3_clks 186 6>,
-                 <&dss0_vp1_clk>,
-                 <&k3_clks 186 2>;
-        clock-names = "fck", "vp1", "vp2";
-        interrupts = <GIC_SPI 84 IRQ_TYPE_LEVEL_HIGH>;
-
-        oldi-transmitters {
-            #address-cells = <1>;
-            #size-cells = <0>;
-
-            oldi0_am62p: oldi@0 {
-                reg = <0>;
-                clocks = <&k3_clks 186 0>;
-                clock-names = "serial";
-                ti,oldi-io-ctrl = <&dss_oldi_io_ctrl>;
-
-                ports {
-                    #address-cells = <1>;
-                    #size-cells = <0>;
-
-                    port@0 {
-                        reg = <0>;
-                        oldi0_am62p_in: endpoint {
-                            remote-endpoint = <&dpi0_am62p_out0>;
-                        };
-                    };
-
-                    port@1 {
-                        reg = <1>;
-                        oldi0_am62p_out: endpoint {
-                            remote-endpoint = <&panel0_in>;
-                        };
-                    };
-                };
-            };
-
-            oldi1_am62p: oldi@1 {
-                reg = <1>;
-                clocks = <&k3_clks 186 0>;
-                clock-names = "serial";
-                ti,oldi-io-ctrl = <&dss_oldi_io_ctrl>;
-
-                ports {
-                    #address-cells = <1>;
-                    #size-cells = <0>;
-
-                    port@0 {
-                        reg = <0>;
-                        oldi1_am62p_in: endpoint {
-                            remote-endpoint = <&dpi0_am62p_out1>;
-                        };
-                    };
-
-                    port@1 {
-                        reg = <1>;
-                        oldi1_am62p_out: endpoint {
-                            remote-endpoint = <&panel1_in>;
-                        };
-                    };
-                };
-            };
-        };
-
-        ports {
-            #address-cells = <1>;
-            #size-cells = <0>;
-
-            port@0 {
-                #address-cells = <1>;
-                #size-cells = <0>;
-                reg = <0>;
-                dpi0_am62p_out0: endpoint@0 {
-                    reg = <0>;
-                    remote-endpoint = <&oldi0_am62p_in>;
-                };
-                dpi0_am62p_out1: endpoint@1 {
-                    reg = <1>;
-                    remote-endpoint = <&oldi1_am62p_in>;
-                };
-            };
-
-            port@1 {
-                reg = <1>;
-                dpi1_am62p_out: endpoint {
-                    remote-endpoint = <&dpi_bridge>;
                 };
             };
         };
